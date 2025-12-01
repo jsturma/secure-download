@@ -103,11 +103,28 @@ The read-only protection uses multiple layers (defense in depth):
 3. **Application Level**: Lua scripts only use read operations
 4. **Network Level**: Only specific paths are accessible
 
+## Symlink Handling
+
+The service safely handles symbolic links:
+
+1. **Symlink Resolution**: When a file is replaced by a symbolic link, the service automatically resolves the symlink and serves the actual target file
+2. **Security Validation**: All resolved symlink paths are validated to ensure they remain within the user's allowed directory
+3. **Attack Prevention**: Symlink attacks (attempting to access files outside user directory via symlinks) are prevented through path validation
+4. **Transparent Operation**: From the user's perspective, symlinks work transparently - they download the actual file, not the symlink
+
+### How It Works
+
+- When a file path is accessed, the service uses `realpath()` to resolve any symlinks
+- The resolved path is validated to ensure it starts with the user's directory prefix
+- If a symlink points outside the allowed directory, the request is rejected with 403 Forbidden
+- The resolved path is stored in the session for subsequent requests
+
 ## Important Notes
 
 - **File Management**: Files must be added/removed/modified outside the container by mounting files into `./shared/` directory on the host
 - **No Upload Endpoint**: There is no endpoint for uploading files - this service is download-only
 - **Read-Only by Design**: This is intentional - the service is designed solely for secure file downloads, not file management
+- **Symlink Support**: Symbolic links are supported and resolved to actual files, but cannot escape user directories
 
 ## Production Considerations
 
