@@ -1,0 +1,62 @@
+version: "3.9"
+
+networks:
+  secure-download:
+    driver: bridge
+
+services:
+
+  vault:
+    image: hashicorp/vault:1.18
+    container_name: vault
+    networks:
+      - secure-download
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=root
+      - VAULT_ADDR=http://0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    command: >
+      server -dev
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - ./vault/data:/vault/data
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  redis:
+    image: redis:7
+    container_name: redis
+    networks:
+      - secure-download
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  nginx:
+    image: openresty/openresty:alpine
+    container_name: nginx
+    networks:
+      - secure-download
+    depends_on:
+      redis:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./nginx/jwks:/etc/nginx/jwks:ro
+      - ./shared:/data:ro
+    restart: unless-stopped
